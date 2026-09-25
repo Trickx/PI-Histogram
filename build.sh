@@ -17,7 +17,10 @@
 # Usage: ./build.sh [--arch=arm64|x64] [--pi=<PixInsight dir>] [clean]
 # ============================================================================
 
-set -e
+set -eE
+
+# Report the failing command; in GitHub Actions also as an error annotation.
+trap 'rc=$?; msg="build.sh: line $LINENO: \"$BASH_COMMAND\" failed with exit code $rc"; echo "$msg" >&2; [ -n "$GITHUB_ACTIONS" ] && echo "::error::$msg"; exit $rc' ERR
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ACTION="all"
@@ -45,6 +48,10 @@ if [ -z "$ARCH" ]; then
       arm64|aarch64) ARCH="arm64" ;;
       *)             ARCH="x64" ;;
    esac
+fi
+if [ "$ARCH" != "arm64" ] && [ "$ARCH" != "x64" ]; then
+   echo "Unsupported architecture: $ARCH" >&2
+   exit 1
 fi
 if [ "$PLATFORM" != "macosx" ] && [ "$ARCH" != "x64" ]; then
    echo "Only x64 is supported on $PLATFORM." >&2
@@ -128,6 +135,28 @@ build_make_lib()
    ( cd "$dir" && make -f "$makefile" -j"$JOBS" --no-print-directory > /dev/null )
 }
 
+# Locates MSBuild of Visual Studio 2022, which is not necessarily in the PATH
+# of Git Bash.
+find_msbuild()
+{
+   if command -v msbuild > /dev/null 2>&1; then
+      MSBUILD="msbuild"
+      return
+   fi
+   local vswhere="/c/Program Files (x86)/Microsoft Visual Studio/Installer/vswhere.exe"
+   if [ -f "$vswhere" ]; then
+      local path
+      path="$("$vswhere" -latest -version "[17.0,18.0)" -requires Microsoft.Component.MSBuild \
+                -find 'MSBuild\**\Bin\amd64\MSBuild.exe' | head -n1 | tr -d '\r')"
+      if [ -n "$path" ]; then
+         MSBUILD="$(cygpath -u "$path")"
+         return
+      fi
+   fi
+   echo "MSBuild (Visual Studio 2022) not found." >&2
+   return 1
+}
+
 # build_msbuild_lib <vcxproj> <library file>
 build_msbuild_lib()
 {
@@ -137,7 +166,7 @@ build_msbuild_lib()
       return
    fi
    echo "Building $lib ..."
-   msbuild "$(winpath "$project")" -nologo -v:minimal -m -p:Configuration=Release -p:Platform=x64
+   "$MSBUILD" "$(winpath "$project")" -nologo -v:minimal -m -p:Configuration=Release -p:Platform=x64
 }
 
 LIBS3RD="cminpack lcms lz4 RFC6234 zlib zstd"
@@ -150,6 +179,8 @@ case "$PLATFORM" in
       build_make_lib "$PCLSRCDIR/pcl/$PLATFORM/g++" "libPCL-pxi.a"
       ;;
    windows)
+      find_msbuild
+      echo "Using MSBuild: $MSBUILD"
       # MSBuild reads these as properties; it needs native Windows paths.
       export PCLDIR="$(winpath "$PCLDIR")"
       export PCLINCDIR="$(winpath "$PCLINCDIR")"
@@ -176,7 +207,7 @@ case "$PLATFORM" in
       ( cd "$REPO_ROOT/$PLATFORM/g++" && make ARCH="$ARCH" -j"$JOBS" --no-print-directory )
       ;;
    windows)
-      msbuild "$(winpath "$REPO_ROOT/windows/vc17/HistogramViewer.vcxproj")" -nologo -v:minimal -m -p:Configuration=Release -p:Platform=x64
+      "$MSBUILD" "$(winpath "$REPO_ROOT/windows/vc17/HistogramViewer.vcxproj")" -nologo -v:minimal -m -p:Configuration=Release -p:Platform=x64
       ;;
 esac
 
