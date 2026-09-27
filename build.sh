@@ -169,7 +169,7 @@ build_msbuild_lib()
    "$MSBUILD" "$(winpath "$project")" -nologo -v:minimal -m -p:Configuration=Release -p:Platform=x64
 }
 
-LIBS3RD="cminpack lcms lz4 RFC6234 zlib zstd"
+LIBS3RD="lcms lz4 RFC6234 zlib zstd"
 
 case "$PLATFORM" in
    macosx|linux)
