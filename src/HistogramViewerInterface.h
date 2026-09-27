@@ -54,6 +54,11 @@ public:
    void ImageFocused( const View& ) override;
    void ImageDeleted( const View& ) override;
 
+   bool WantsReadoutNotifications() const override;
+   void BeginReadout( const View& ) override;
+   void EndReadout( const View& ) override;
+   void UpdateReadout( const View&, const DPoint&, double R, double G, double B, double A ) override;
+
    // Opens the interface on the specified view (or the current target if
    // null) with the display settings of the specified instance.
    void LaunchFor( const View&, const HistogramViewerInstance& );
@@ -66,6 +71,10 @@ private:
    View                    m_view;
    HistogramModel          m_model;
    bool                    m_modelDirty = false; // recompute when next shown
+   View                    m_readoutView;          // last pixel clicked on an image
+   DPoint                  m_readoutPosition = 0;
+   double                  m_readoutValue[ 3 ] = {};
+   bool                    m_readoutActive = false; // between Begin/EndReadout
 
    struct GUIData
    {
@@ -99,6 +108,8 @@ private:
    GUIData* GUI = nullptr;
 
    void SetTargetView( const View& );
+   bool IsTargetView( const View& ) const;
+   double HistogramFraction( double value ) const;
    void RefreshModel();
    void ComputeModel();
    void UpdateStatsVisibility();

@@ -14,7 +14,6 @@
 #include "HistogramViewerProcess.h"
 
 #include <pcl/Graphics.h>
-#include <pcl/ImageWindow.h>
 
 #include <algorithm>
 #include <cmath>
@@ -211,6 +210,8 @@ bool HistogramViewerInterface::WantsImageNotifications() const
 
 void HistogramViewerInterface::ImageUpdated( const View& view )
 {
+   if ( !m_readoutView.IsNull() && !view.IsNull() && view.Window() == m_readoutView.Window() )
+      m_readoutView = View::Null();
    if ( GUI != nullptr && view == m_view )
       RefreshModel();
 }
@@ -227,8 +228,57 @@ void HistogramViewerInterface::ImageFocused( const View& view )
 
 void HistogramViewerInterface::ImageDeleted( const View& view )
 {
+   if ( view == m_readoutView )
+      m_readoutView = View::Null();
    if ( GUI != nullptr && view == m_view )
       SetTargetView( View::Null() );
+}
+
+// ----------------------------------------------------------------------------
+
+bool HistogramViewerInterface::WantsReadoutNotifications() const
+{
+   return true;
+}
+
+// ----------------------------------------------------------------------------
+
+void HistogramViewerInterface::BeginReadout( const View& /*view*/ )
+{
+   m_readoutActive = true;
+}
+
+// ----------------------------------------------------------------------------
+
+void HistogramViewerInterface::EndReadout( const View& view )
+{
+   // The second press of a double click starts no readout, but its release
+   // still ends one: an EndReadout without a preceding BeginReadout marks a
+   // double click, which makes the clicked view the analyzed image (also
+   // while Track View is off).
+   const bool doubleClick = !m_readoutActive;
+   m_readoutActive = false;
+
+   if ( doubleClick && GUI != nullptr && IsVisible() && !view.IsNull() && view != m_view )
+      SetTargetView( view );
+}
+
+// ----------------------------------------------------------------------------
+
+void HistogramViewerInterface::UpdateReadout( const View& view, const DPoint& position, double R, double G, double B, double /*A*/ )
+{
+   if ( GUI == nullptr || !IsVisible() || view.IsNull() )
+      return;
+
+   // Also kept for other images, so that the marker appears as soon as the
+   // clicked image becomes the analyzed one.
+   m_readoutView = view;
+   m_readoutPosition = position;
+   m_readoutValue[0] = R;
+   m_readoutValue[1] = G;
+   m_readoutValue[2] = B;
+   if ( IsTargetView( view ) )
+      GUI->Histogram_Control.Update();
 }
 
 // ----------------------------------------------------------------------------
@@ -251,6 +301,35 @@ void HistogramViewerInterface::SetTargetView( const View& view )
    if ( GUI != nullptr && !m_view.IsNull() )
       GUI->Target_ViewList.SelectView( m_view );
    RefreshModel();
+}
+
+// ----------------------------------------------------------------------------
+
+bool HistogramViewerInterface::IsTargetView( const View& view ) const
+{
+   // Readouts from any view of the target's window (main view or previews)
+   // share its pixel data.
+   if ( view.IsNull() || m_view.IsNull() )
+      return false;
+   return view == m_view || view.Window() == m_view.Window();
+}
+
+// ----------------------------------------------------------------------------
+
+/*
+ * Position of a sample value on the intensity axis as a fraction of the full
+ * (unzoomed) histogram width, consistent with the binning in HistogramModel.
+ * Returns a negative value if the sample cannot be shown on a logarithmic axis.
+ */
+double HistogramViewerInterface::HistogramFraction( double value ) const
+{
+   if ( !m_instance.p_logX )
+      return Range( value, 0.0, 1.0 );
+   if ( value <= 0 )
+      return -1;
+   if ( m_model.logMinimumExponent >= 0 )
+      return 1;
+   return Range( (std::log10( value ) - m_model.logMinimumExponent) / -m_model.logMinimumExponent, 0.0, 1.0 );
 }
 
 // ----------------------------------------------------------------------------
@@ -448,6 +527,34 @@ void HistogramViewerInterface::PaintHistogram( Graphics& G )
       G.DrawText( px( 4 ), y + px( 4 ), yLabel );
    }
    G.DrawText( px( 4 ), top - px( 10 ), "Count" );
+
+   if ( IsTargetView( m_readoutView ) )
+   {
+      const RGBA markerColors[] = { 0xffff5555, 0xff55ff77, 0xff6699ff };
+      const char* channelNames[] = { "R", "G", "B" };
+      String readout = String().Format( "x=%d y=%d:", TruncInt( m_readoutPosition.x ), TruncInt( m_readoutPosition.y ) );
+      for ( int channel = 0; channel < m_model.channels; ++channel )
+      {
+         const double value = m_readoutValue[channel];
+         if ( m_model.color )
+            readout += String().Format( "  %s %.6f", channelNames[channel], value );
+         else
+            readout += String().Format( "  %.6f", value );
+
+         if ( m_model.color && !channelVisible[channel] )
+            continue;
+         const double fraction = HistogramFraction( value );
+         if ( fraction < 0 )
+            continue;
+         const int x = left + int( std::floor( fraction*width ) ) - int( offset );
+         if ( x < left || x > left + visibleWidth )
+            continue;
+         G.SetPen( Pen( m_model.color ? markerColors[channel] : RGBA( 0xffffcc00 ), px( 1 ) ) );
+         G.DrawLine( x, top, x, top + height );
+      }
+      G.SetPen( Pen( 0xffeeeeee ) );
+      G.DrawText( left + px( 16 ), top - px( 10 ), readout );
+   }
 }
 
 // ----------------------------------------------------------------------------

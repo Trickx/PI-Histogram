@@ -1,13 +1,13 @@
 # HistogramViewer – PixInsight module
 
-Native PCL/C++ port of `Histogram.js`: a non-destructive histogram and statistics
-viewer (separate RGB curves, linear/log axes, zoom/range, percentiles, clipping
-statistics). Based on the histogram view of Seti Astro Suite Pro (SASpro) by
-Franklin Marek. GPL-3.0.
+Native PCL/C++ port of the former `Histogram.js` script: a non-destructive
+histogram and statistics viewer (separate RGB curves, linear/log axes,
+zoom/range, percentiles, clipping statistics). Based on the histogram view of
+Seti Astro Suite Pro (SASpro) by Franklin Marek. GPL-3.0.
 
 The process is called **HistogramViewer** (category *Tricx*); `Histogram` is
 already taken by the PJSR core object of the same name. Parameter ids are the
-same as in the script (`logX`, `logY`, `zoom`, `pan`, `stats`, `showRed`,
+same as in the former script (`logX`, `logY`, `zoom`, `pan`, `stats`, `showRed`,
 `showGreen`, `showBlue`).
 
 ## Build
@@ -50,15 +50,22 @@ The public PCL repository lacks the Windows project of the PCL library itself;
 
 ## Install
 
-1. Sign the module (PixInsight only loads signed modules):
-   `PixInsight --sign-module-file=bin/macosx-arm64/HistogramViewer-pxm.dylib --xssk-file=<key.xssk> --xssk-password=<password>`
+1. Sign the module (PixInsight only loads signed modules): `./sign.sh` signs
+   all modules in `bin/` with the key file configured in the script and asks
+   for its password. Module files can also be given as arguments;
+   `--pi=<dir>` selects another PixInsight installation.
 2. In PixInsight: *Process › Modules › Install Modules…*, select the dylib.
 3. Open it via *Process › Tricx › HistogramViewer*.
 
 ## Usage
 
 - The viewer follows the active image while *Track View* is on; any image or
-  preview can also be selected in the *Image* list.
+  preview can also be selected in the *Image* list. Double-clicking on an image
+  in readout mode makes it the analyzed image, also while *Track View* is off.
+- Clicking (or dragging) on the analyzed image in readout mode marks the pixel
+  values in the histogram with one line per channel and shows the pixel
+  coordinates and values above the plot. The marker is cleared when the image
+  changes or another image is selected.
 - Drag the triangle in the control bar to create a process icon with the
   current display settings. Executing that icon on an image (or globally)
   opens the viewer for it; the image is never modified.

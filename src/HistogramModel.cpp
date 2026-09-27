@@ -152,7 +152,7 @@ HistogramModel::HistogramModel( const ImageVariant& image )
       {
          if ( value <= 0 )
             continue;
-         // All positive samples are 1 when logMinimumExponent is 0. The script
+         // All positive samples are 1 when logMinimumExponent is 0. The former script
          // divides by zero there and loses them; count them in the last bin.
          double logFraction = (logMinimumExponent < 0) ?
                (std::log10( value ) - logMinimumExponent) / -logMinimumExponent : 1.0;

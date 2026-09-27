@@ -14,7 +14,7 @@ namespace pcl
 PCL_BEGIN_LOCAL
 
 // ----------------------------------------------------------------------------
-// Parameter identifiers are the same as those used by the Histogram.js script.
+// Parameter identifiers are the same as those used by the former Histogram.js script.
 // ----------------------------------------------------------------------------
 
 class HVLogX : public MetaBoolean
